@@ -724,7 +724,91 @@ env.save_gif("car_on_hill.gif")
 #   - Stopping rule.
 
 # %%
-# your code
+def estimate_expected_return(env, fqi, n_episodes=100, max_steps=200):
+    """
+    Estimate the expected return of a policy derived from FQI.
+
+    Parameters:
+    - env: The environment
+    - fqi: Trained FittedQIteration instance
+    - n_episodes: Number of episodes to simulate
+    - max_steps: Maximum steps per episode
+
+    Returns:
+    - Average return across all episodes
+    """
+    total_return = 0
+
+    for _ in range(n_episodes):
+        state, _ = env.reset()
+        episode_return = 0
+        step = 0
+        gamma_power = 1  # γ^t
+
+        for _ in range(max_steps):
+            # Choose action according to the learned policy
+            action_idx = np.argmax(fqi.predict_Q(state))
+            action = 1 if fqi.action_space[action_idx] == 4 else 0  # Convert to env action
+
+            # Take a step in the environment
+            next_state, reward, terminated, truncated, _ = env.step(action)
+
+            # Update return
+            episode_return += gamma_power * reward
+            gamma_power *= env.gamma
+
+            # Update state
+            state = next_state
+            step += 1
+
+            # Check termination
+            if terminated or truncated:
+                break
+
+        total_return += episode_return
+
+    return total_return / n_episodes
+
+# Create a table of expected returns
+results_table = np.zeros((len(models), len(tuple_generation_techniques), len(stopping_conditions)))
+
+for i, model_name in enumerate(models.keys()):
+    for j, (gen_name, _) in enumerate(tuple_generation_techniques):
+        for k, stopping_condition in enumerate(stopping_conditions):
+            key = (model_name, gen_name, stopping_condition)
+            if key in trained_models:
+                fqi = trained_models[key]
+                expected_return = estimate_expected_return(env, fqi)
+                results_table[i, j, k] = expected_return
+                print(f"Expected return for {model_name}, {gen_name}, {stopping_condition}: {expected_return:.4f}")
+
+# Display results in a formatted table
+print("\nExpected Returns:")
+print("-" * 80)
+print(f"{'Model':<20} | {'Generation':<10} | {'Stopping':<10} | {'Return':<10}")
+print("-" * 80)
+
+for i, model_name in enumerate(models.keys()):
+    for j, (gen_name, _) in enumerate(tuple_generation_techniques):
+        for k, stopping_condition in enumerate(stopping_conditions):
+            print(f"{model_name:<20} | {gen_name:<10} | {stopping_condition:<10} | {results_table[i, j, k]:<10.4f}")
+
+# Play the policy of the best model
+env = CarOnHillEnv(render_mode="gif")
+best_model = trained_models[best_model_key]
+
+num_steps = 100
+state, _ = env.reset()
+for _ in range(num_steps):
+    q_values = best_model.predict_Q(state)
+    action_idx = np.argmax(q_values)
+    action = 1 if best_model.action_space[action_idx] == 4 else 0  # Convert to env action
+    next_state, reward, terminated, truncated, _ = env.step(action)
+    if terminated or truncated:
+        break
+    state = next_state
+
+env.save_gif("car_on_hill.gif")
 
 # %% [markdown]
 # ### Question 5: Results Discussion
